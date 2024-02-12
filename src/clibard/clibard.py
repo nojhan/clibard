@@ -40,6 +40,70 @@ class N:
         return self.args_list
 
 
+class Color:
+
+    def ansi2rgb(ansi):
+       if 232 <= ansi and ansi <= 255:
+           # Greyscale domain.
+           R = (ansi - 232) * 10 + 8
+           G = R
+           B = R
+       elif 0 <= ansi and ansi <= 15:
+           # Default 16 colors.
+           ansi_16 = [(0,0,0),(128,0,0),(0,128,0),(128,128,0),(0,0,128),(128,0,128),(0,128,128),(192,192,192),(80,80,80),(255,0,0),(0,255,0),(255,255,0),(0,0,255),(255,0,255),(0,255,255),(255,255,255)]
+           R,G,B = ansi_16[ansi]
+       else:
+           iR = (ansi - 16) / 36
+           if iR > 0:
+               R = 55 + iR*40
+           else:
+               R = 0
+
+           iG = (ansi-16) % 36 / 6
+           if iG > 0:
+               G = 55 + iG*40
+           else:
+               G = 0
+
+           iB = (ansi-16) % 6
+           if iB > 0:
+               B = 55 + iB*40
+           else:
+               B = 0
+
+       return R,G,B
+
+    def lum(dC):
+        """Linearize an RGB component."""
+        if dC <= 0.03928:
+            return dC / 12.92
+        else:
+            return pow( (dC + 0.055)/1.055 , 2.4)
+
+    def luminance(R, G, B):
+        """RGB linear (reljative) luminance."""
+        dR = R / 255
+        dG = G / 255
+        dB = B / 255
+
+        lR = Color.lum(dR)
+        lG = Color.lum(dG)
+        lB = Color.lum(dB)
+
+        return 0.2126 * lR + 0.7152 * lG + 0.0722 * lB
+
+    def lightness(luminance):
+        """Perceived lightness in [0,100] (i.e. [darkest, lightest])."""
+        if luminance < 216/24389:
+            return luminance * 24389 / 27
+        else:
+            return pow(luminance, 1/3) * 116 - 16
+
+    def ansi_lightness(ansi):
+        R,G,B = Color.ansi2rgb(ansi)
+        return Color.lightness(Color.luminance(R,G,B))
+
+
 class Message:
     def __init__(self, notification):
         # print("Notification")
@@ -70,16 +134,23 @@ class Message:
             "date": "21",
             "summary": "254",
             "body": "242",
+            "none": "0"
         }
 
-        self.style = {"none": "black"}
+        self.style = {}
         for k in self.color:
             self.style[k] = f"color({self.color[k]})"
 
     def print_segment(self, key, text, console):
         console.print("",  style=f"{self.last_color} on {self.style[key]}", end="")
-        # FIXME automated black or white
-        console.print(text, style=f"black on {self.style[key]}", end="")
+
+        # Automated black or white foreground.
+        if Color.ansi_lightness(int(self.color[key])) >= 50:
+            fg = "black"
+        else:
+            fg = "white"
+        console.print(text, style=f"{fg} on {self.style[key]}", end="")
+
         self.last_color = f"{self.style[key]}"
 
     def print_on(self, console = Console()):
