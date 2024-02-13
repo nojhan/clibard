@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 
-import collections
-# import rich
-from rich.console import Console
-from rich.style import Style
-import humanize
+import copy
 import datetime
-from enum import IntEnum
+import collections
+
+import humanize
+from rich.console import Console
 
 import dbus
 import gi.repository.GLib
 from dbus.mainloop.glib import DBusGMainLoop
 
 class N:
-    def __init__(self, app = "my app", summary = "my summary", body = "my (potentially longer) body"):
+    def __init__(self, app = "unknown app", summary = "no info", body = "", urgency = 0):
         self.member = "Notify"
         self.interface = "org.freedesktop.Notifications"
         self.args_list = [
@@ -24,7 +23,7 @@ class N:
             body,
             ["s"],
             {
-                "urgency": 1,
+                "urgency": urgency,
                 "sender-pid": 12345,
             },
             -1
@@ -120,53 +119,95 @@ class Message:
         self.expire_timeout = int(args[7])
 
         self.date = datetime.datetime.now()
-        self.urgencies = {0: "low", 1: "normal", 2: "critical", None: "unknown"}
-        self.urgency = self.urgencies[self.hints["urgency"]]
+        self.urgencies = {0: "low", 1: "normal", 2: "critical"}
+        if "urgency" in self.hints:
+            self.urgency = self.urgencies[self.hints["urgency"]]
+        else:
+            self.urgency = self.urgencies[0]
 
         self.last_color = "black"
 
         self.color = {
             # Urgencies
-            "low": "105",
-            "normal": "33",
-            "critical": "220",
-            "unknown": "69",
-            "date": "21",
-            "summary": "254",
-            "body": "242",
-            "none": "0"
+            "low": 112,
+            "normal": 33,
+            "critical": 214,
+            "unknown": 105,
+
+            "summary_low": 193,
+            "summary_normal": 81,
+            "summary_critical": 228,
+            "summary_unknown": 189,
+
+            "date": 237,
+            "summary": 254,
+            "body": 242,
         }
 
-        self.style = {}
+        self._style = {}
         for k in self.color:
-            self.style[k] = f"color({self.color[k]})"
+            self._style[k] = f"color({self.color[k]})"
 
-    def print_segment(self, key, text, console):
-        console.print("",  style=f"{self.last_color} on {self.style[key]}", end="")
+
+    def style(self, key):
+        if "reset" in key or "none" in key:
+            return "reset"
+        else:
+            return self._style[key]
+
+
+    def print_segment(self, key, text, console, prefix = ""):
+        # print("\n>",key,":",text,"(",prefix,")")
+
+        if key == "none":
+            console.print("",  style=f"reset", end="")
+            console.print("",  style=f"{self.last_color}", end="")
+            return
+
+        # if "reset" in self.last_color or "reset" in self.style(key):
+        #     st = "reset"
+        # else:
+        st = f"{self.last_color} on {self.style(key)}"
+        # print(">>",st)
+
+        console.print("",  style=st, end="")
 
         # Automated black or white foreground.
-        if Color.ansi_lightness(int(self.color[key])) >= 50:
+        if Color.ansi_lightness(self.color[key]) >= 50:
             fg = "black"
         else:
             fg = "white"
-        console.print(text, style=f"{fg} on {self.style[key]}", end="")
 
-        self.last_color = f"{self.style[key]}"
+        # if "reset" in prefix or "reset" in fg or "reset" in self.style(key):
+        #     st = "reset"
+        # else:
+        st = f"{prefix} {fg} on {self.style(key)}"
+        # print("\n>>",st)
 
-    def print_on(self, console = Console()):
+        console.print(text, style=st, end="")
+
+        self.last_color = f"{self.style(key)}"
+
+
+    def print_on(self, console = None):
         hdate = humanize.naturaltime(self.date)
-        self.print_segment("date", hdate, console)
-        self.print_segment(self.urgency, self.app, console)
-        self.print_segment("summary", self.summary, console)
-        self.print_segment("body", self.body, console)
-        # console.print(f"[color(21)][white on color(21)]{hdate}[color(21) on color(33)][bold color(232) on color(33)]{self.app}[color(33) on color(254)][not bold color(232) on color(254)]{self.summary}[color(254) on color(239)][white on color(239)]{self.body}[reset][color(239)]", end="")
-        self.print_segment("none", "", console)
+        if console != None:
+            console.print(" ", end="")
+            self.print_segment("date", hdate, console)
+            self.print_segment(self.urgency, self.app, console, prefix = "bold")
+            self.print_segment(f"summary_{self.urgency}", self.summary, console, prefix = "bold")
+            self.print_segment("body", self.body, console)
+            self.print_segment("none", "", console)
+
+        return len(hdate) + len(self.app) + len(self.summary) + len(self.body) + 6
 
 
 class Broker:
-    def __init__(self):
+    def __init__(self, max_msg = 100):
+
+        self.max_msg = max_msg
+
         self.deck = collections.deque()
-        self.console = Console()
 
         DBusGMainLoop(set_as_default=True)
 
@@ -186,23 +227,58 @@ class Broker:
 
         if notification.get_member() == "Notify" and notification.get_interface() == 'org.freedesktop.Notifications':
             msg = Message(notification)
-            self.deck.append(msg)
+            mlen = msg.print_on(None)
+            self.deck.append((msg, mlen))
+            if len(self.deck) > self.max_msg:
+                del self.deck[0]
             self.print()
 
+
+    def width(self, deck):
+        w = 0
+        for msg,mlen in deck:
+            w += mlen
+        return w
+
+
     def print(self):
-        self.console.print(">", end = "\r") # It is necssary to print something before the chariot return.
-        for msg in self.deck:
-            self.console.print(" ", end="")
-            msg.print_on(self.console)
+        # print(len(self.deck),"message in deck")
+        console = Console() # Re-instantiate in case the terminal window changed.
+        console.print("\r>", end="")
+        displayed = copy.deepcopy(self.deck)
+        # Filter out messages that would not fit the terminal width.
+        while self.width(displayed) >= console.size.width:
+            displayed.popleft()
+
+        # print(len(self.displayed),"message displayed")
+        # Print what fits.
+        for msg,mlen in displayed:
+            msg.print_on(console)
+
+        # Print overlapping spaces until the end.
+        width = sum(mlen for (msg,mlen) in displayed)
+        console.print(" "*(console.size.width-width-2), end="") # Minus first and last char.
+        console.print("<", end="\r")
 
 
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) > 1 and sys.argv[1] == "--test":
-        broker = Broker()
-        broker.receive(None, N())
-        broker.receive(None, N("other-app", "this is a test", "no much of a body"))
+        from faker import Faker
+        fake = Faker()
+        broker = Broker(max_msg = 100)
+        console = Console()
+        for i in range(7):
+            lorem_app = fake.name()
+            lorem_summary = fake.sentence(nb_words = 3, variable_nb_words = True)
+            lorem_body = fake.sentence(nb_words = 7, variable_nb_words = True)
+            notif = N(lorem_app, lorem_summary, lorem_body, urgency = i%3)
+            # msg = Message(notif)
+            # msg.print_on(console)
+            # console.print("\n", end="")
+            broker.receive(None, notif)
+        print("\n", end="")
     else:
         broker = Broker()
         broker.run()
