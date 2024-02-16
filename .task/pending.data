@@ -1,0 +1,3 @@
+[description:"USR signal: clear output when receiving a SIGUSR1" entry:"1708110796" modified:"1708110796" status:"pending" uuid:"1197a96b-a541-451d-ada4-52e30b423907"]
+[description:"vertical output: allow to display as a regular list of notifications" entry:"1708110838" modified:"1708110838" status:"pending" uuid:"3843de37-6864-4768-b815-ee35bb39d1b9"]
+[description:"rich frames: use rich to produce framed output in vertical display" entry:"1708110873" modified:"1708110873" status:"pending" uuid:"3c0b6104-eb47-401e-815d-7105f876fd12"]
