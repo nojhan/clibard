@@ -207,9 +207,10 @@ class Message:
 
 
 class Broker:
-    def __init__(self, max_msg = 100):
+    def __init__(self, max_msg = 100, bounds = ""):
 
         self.max_msg = max_msg
+        self.bounds = bounds
 
         self.deck = collections.deque()
 
@@ -247,10 +248,13 @@ class Broker:
         return w
 
 
-    def print(self, bounds = "><"):
+    def print(self):
         # print(len(self.deck),"message in deck")
         console = Console() # Re-instantiate in case the terminal window changed.
-        console.print(f"\r{bounds[0]}", end="")
+        if len(self.bounds) == 2:
+            console.print(f"\r{self.bounds[0]}", end="\r")
+        else:
+            console.print(f"\r", end="\r")
 
         # Filter out messages that would not fit the terminal width.
         displayed = copy.deepcopy(self.deck)
@@ -264,8 +268,12 @@ class Broker:
             width += msg.print_on(console)
 
         # Print overlapping spaces until the end.
-        console.print(" "*(console.size.width-width-len(bounds)), end="") # Minus first and last char.
-        console.print(f"{bounds[1]}", end="\r")
+        console.print(" "*(console.size.width-width-len(self.bounds)), end="")
+
+        if len(self.bounds) == 2:
+            console.print(f"{self.bounds[1]}\r", end="\r")
+        else:
+            console.print(f"\r", end="\r")
 
 
 def test_messages(nb = 7):
@@ -285,7 +293,7 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) == 3 and sys.argv[1] == "--test":
-        broker = Broker(max_msg = 100)
+        broker = Broker(max_msg = 100, bounds = "><")
         notifs = test_messages(int(sys.argv[2]))
         for notif in notifs:
             broker.receive(None, notif)
