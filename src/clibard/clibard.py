@@ -72,12 +72,14 @@ class Color:
 
        return R,G,B
 
+
     def lum(dC):
         """Linearize an RGB component."""
         if dC <= 0.03928:
             return dC / 12.92
         else:
             return pow( (dC + 0.055)/1.055 , 2.4)
+
 
     def luminance(R, G, B):
         """RGB linear (reljative) luminance."""
@@ -91,12 +93,14 @@ class Color:
 
         return 0.2126 * lR + 0.7152 * lG + 0.0722 * lB
 
+
     def lightness(luminance):
         """Perceived lightness in [0,100] (i.e. [darkest, lightest])."""
         if luminance < 216/24389:
             return luminance * 24389 / 27
         else:
             return pow(luminance, 1/3) * 116 - 16
+
 
     def ansi_lightness(ansi):
         R,G,B = Color.ansi2rgb(ansi)
@@ -215,9 +219,11 @@ class Broker:
         bus.add_match_string_non_blocking("eavesdrop=true, interface='org.freedesktop.Notifications', member='Notify'")
         bus.add_message_filter(self.receive)
 
+
     def run(self):
         mainloop = gi.repository.GLib.MainLoop()
         mainloop.run()
+
 
     def receive(self, bus, notification):
         # print(notification, flush = True)
@@ -237,48 +243,62 @@ class Broker:
     def width(self, deck):
         w = 0
         for msg,mlen in deck:
-            w += mlen
+            w += msg.print_on(None)
         return w
 
 
-    def print(self):
+    def print(self, bounds = "><"):
         # print(len(self.deck),"message in deck")
         console = Console() # Re-instantiate in case the terminal window changed.
-        console.print("\r>", end="")
-        displayed = copy.deepcopy(self.deck)
+        console.print(f"\r{bounds[0]}", end="")
+
         # Filter out messages that would not fit the terminal width.
+        displayed = copy.deepcopy(self.deck)
         while self.width(displayed) >= console.size.width:
             displayed.popleft()
 
         # print(len(self.displayed),"message displayed")
         # Print what fits.
+        width = 0
         for msg,mlen in displayed:
-            msg.print_on(console)
+            width += msg.print_on(console)
 
         # Print overlapping spaces until the end.
-        width = sum(mlen for (msg,mlen) in displayed)
-        console.print(" "*(console.size.width-width-2), end="") # Minus first and last char.
-        console.print("<", end="\r")
+        console.print(" "*(console.size.width-width-len(bounds)), end="") # Minus first and last char.
+        console.print(f"{bounds[1]}", end="\r")
+
+
+def test_messages(nb = 7):
+    from faker import Faker
+    import random
+    fake = Faker()
+    notifs = []
+    for i in range(nb):
+        lorem_app = fake.name()
+        lorem_summary = fake.sentence(nb_words = 3, variable_nb_words = True)
+        lorem_body = fake.sentence(nb_words = 7, variable_nb_words = True)
+        notifs.append( N(lorem_app, lorem_summary, lorem_body, urgency = random.randint(0,2)) )
+    return notifs
 
 
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) > 1 and sys.argv[1] == "--test":
-        from faker import Faker
-        fake = Faker()
+    if len(sys.argv) == 3 and sys.argv[1] == "--test":
         broker = Broker(max_msg = 100)
-        console = Console()
-        for i in range(7):
-            lorem_app = fake.name()
-            lorem_summary = fake.sentence(nb_words = 3, variable_nb_words = True)
-            lorem_body = fake.sentence(nb_words = 7, variable_nb_words = True)
-            notif = N(lorem_app, lorem_summary, lorem_body, urgency = i%3)
-            # msg = Message(notif)
-            # msg.print_on(console)
-            # console.print("\n", end="")
+        notifs = test_messages(int(sys.argv[2]))
+        for notif in notifs:
             broker.receive(None, notif)
         print("\n", end="")
+
+    elif len(sys.argv) == 3 and sys.argv[1] == "--send":
+        import os
+        import time
+        notifs = test_messages(int(sys.argv[2]))
+        for notif in notifs:
+            m = Message(notif)
+            os.system(f"""notify-send "{m.summary}" "{m.body}" -u {m.urgency}""")
+            time.sleep(0.1)
     else:
         broker = Broker()
         broker.run()
