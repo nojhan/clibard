@@ -152,6 +152,13 @@ class Message:
         for k in self.color:
             self._style[k] = f"color({self.color[k]})"
 
+    def __eq__(self, other):
+        # Do not take date into account if it's already a duplicate.
+        return  self.app     == other.app     \
+            and self.summary == other.summary \
+            and self.body    == other.body    \
+            and self.urgency == other.urgency
+
 
     def style(self, key):
         if "reset" in key or "none" in key:
@@ -235,9 +242,15 @@ class Broker:
         if notification.get_member() == "Notify" and notification.get_interface() == 'org.freedesktop.Notifications':
             msg = Message(notification)
             mlen = msg.print_on(None)
-            self.deck.append((msg, mlen))
-            if len(self.deck) > self.max_msg:
-                del self.deck[0]
+            if len(self.deck) == 0:
+                self.deck.append( (msg, mlen) )
+            else:
+                last_msg,last_mlen = self.deck.pop()
+                self.deck.append( (last_msg, last_mlen) )
+                if msg != last_msg: # We don't want duplicate in the last place.
+                    self.deck.append( (msg, mlen) )
+                    if len(self.deck) > self.max_msg:
+                        self.deck.popleft()
             self.print()
 
 
@@ -250,7 +263,7 @@ class Broker:
 
     def print(self):
         # print(len(self.deck),"message in deck")
-        console = Console() # Re-instantiate in case the terminal window changed.
+        console = Console(highlight=False) # Re-instantiate in case the terminal window changed.
         if len(self.bounds) == 2:
             console.print(f"\r{self.bounds[0]}", end="\r")
         else:
