@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import copy
+import signal
 import datetime
 import collections
 
@@ -221,6 +222,8 @@ class Broker:
 
         self.deck = collections.deque()
 
+        signal.signal(signal.SIGUSR1, self.sigusr1)
+
         DBusGMainLoop(set_as_default=True)
 
         bus = dbus.SessionBus()
@@ -252,6 +255,11 @@ class Broker:
                     if len(self.deck) > self.max_msg:
                         self.deck.popleft()
             self.print()
+
+
+    def sigusr1(self, signum, stack):
+        self.deck.clear()
+        self.print()
 
 
     def width(self, deck):
