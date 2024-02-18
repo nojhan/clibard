@@ -201,7 +201,7 @@ class Message:
         self.last_color = f"{self.style(key)}"
 
 
-    def print_on(self, console = None):
+    def print_on(self, console = None, end = ""):
         hdate = humanize.naturaltime(self.date)
         if console != None:
             console.print(" ", end="")
@@ -210,6 +210,7 @@ class Message:
             self.print_segment(f"summary_{self.urgency}", self.summary, console, prefix = "bold")
             self.print_segment("body", self.body, console)
             self.print_segment("none", "", console)
+            console.print(end, end="")
 
         return len(hdate) + len(self.app) + len(self.summary) + len(self.body) + 6
 
@@ -262,6 +263,16 @@ class Broker:
         self.print()
 
 
+    def print(self):
+        raise NotImplementedError
+
+
+class HorizontalBroker(Broker):
+
+    def __init__(self, max_msg = 100, bounds = ""):
+        super().__init__(max_msg, bounds)
+
+
     def width(self, deck):
         w = 0
         for msg,mlen in deck:
@@ -297,6 +308,19 @@ class Broker:
             console.print(f"\r", end="\r")
 
 
+class VerticalBroker(Broker):
+
+    def __init__(self, max_msg = 100, bounds = ""):
+        super().__init__(max_msg, bounds)
+
+
+    def print(self):
+        console = Console(highlight=False)
+        last_msg,last_mlen = self.deck.pop()
+        self.deck.append( (last_msg, last_mlen) )
+        last_msg.print_on(console, end = "\n")
+
+
 def test_messages(nb = 7):
     from faker import Faker
     import random
@@ -312,15 +336,32 @@ def test_messages(nb = 7):
 
 if __name__ == "__main__":
     import sys
+    import argparse
 
-    if len(sys.argv) == 3 and sys.argv[1] == "--test":
-        broker = Broker(max_msg = 100, bounds = "><")
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-l", "--layout", choices = ["h", "v", "horizontal", "vertical"], default = "horizontal",
+        help = "How to display notifications. `horizontal` = as many of the last notifications that fit on a single line, clear out the old ones. `vertical` = keep printing new notifications on new lines.")
+
+    parser.add_argument("--test", metavar="NB_ITEMS",
+        help = "Print NB_ITEMS fake notifications and quit.")
+
+    parser.add_argument("--send", metavar="NB_ITEMS",
+        help = "Send NB_ITEMS fake notifications on the D-Bus and quit.")
+
+    asked = parser.parse_args()
+
+    if asked.test:
+        if asked.layout[0] == "h":
+            broker = HorizontalBroker(bounds = "><")
+        elif asked.layout[0] == "v":
+            broker = VerticalBroker(bounds = "><")
         notifs = test_messages(int(sys.argv[2]))
         for notif in notifs:
             broker.receive(None, notif)
         print("\n", end="")
 
-    elif len(sys.argv) == 3 and sys.argv[1] == "--send":
+    elif asked.send:
         import os
         import time
         notifs = test_messages(int(sys.argv[2]))
@@ -328,6 +369,11 @@ if __name__ == "__main__":
             m = Message(notif)
             os.system(f"""notify-send "{m.summary}" "{m.body}" -u {m.urgency}""")
             time.sleep(0.1)
-    else:
-        broker = Broker()
+
+    elif asked.layout[0] == "h":
+        broker = HorizontalBroker()
+        broker.run()
+
+    elif asked.layout[0] == "v":
+        broker = VerticalBroker()
         broker.run()
