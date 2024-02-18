@@ -224,6 +224,7 @@ class Broker:
         self.deck = collections.deque()
 
         signal.signal(signal.SIGUSR1, self.sigusr1)
+        signal.signal(signal.SIGUSR2, self.sigusr2)
 
         DBusGMainLoop(set_as_default=True)
 
@@ -259,6 +260,10 @@ class Broker:
 
 
     def sigusr1(self, signum, stack):
+        self.print()
+
+
+    def sigusr2(self, signum, stack):
         self.deck.clear()
         self.print()
 
