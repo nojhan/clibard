@@ -8,6 +8,8 @@ It is not an interactive application, it just displays incoming notifications.
 At any time, as much as possible of the last notifications are displayed.
 The display refreshes when a notification is received.
 
+![Screenshot of the vertical layout](https://github.com/nojhan/clibard/blob/main/doc/screenshot_vertical.png?raw=true)
+
 The CLI bard is written in Python and is available under the AGPLv3 license.
 
 
@@ -79,6 +81,8 @@ The default layout is the horizontal one.
 
 Horizontal
 ----------
+
+![Screenshot of the horizontal layout](https://github.com/nojhan/clibard/blob/main/doc/screenshot_horizontal.png?raw=true)
 
 This will display on a single line, and overwrite it as soon as an update is
 received.
