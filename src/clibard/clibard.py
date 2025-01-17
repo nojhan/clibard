@@ -212,7 +212,6 @@ class MessageLine(Message):
             body = " ".join(self.body.split())
             self.print_segment("body", body, console)
             self.print_segment("none", "", console)
-            console.print("", end="\n")
             console.print(end, end="")
 
         return len(hdate) + len(self.app) + len(self.summary) + len(self.body) + 6
@@ -220,10 +219,9 @@ class MessageLine(Message):
 
 class MessageParagraph(Message):
     def print_on(self, console = None, end = ""):
-        hdate = humanize.naturaltime(self.date)
+        hdate = self.date.strftime("%Y-%m-%d %H:%M")
         if console != None:
-            # console.print(" ", end="")
-            # self.print_segment("date", hdate, console)
+            self.print_segment("date", hdate, console)
             self.print_segment(self.urgency, self.app, console, prefix = "bold")
             self.print_segment(f"summary_{self.urgency}", self.summary, console, prefix = "bold")
             self.print_segment("none", "", console)
