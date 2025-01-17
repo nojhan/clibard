@@ -201,6 +201,7 @@ class Message:
         self.last_color = f"{self.style(key)}"
 
 
+class MessageLine(Message):
     def print_on(self, console = None, end = ""):
         hdate = humanize.naturaltime(self.date)
         if console != None:
@@ -208,18 +209,41 @@ class Message:
             self.print_segment("date", hdate, console)
             self.print_segment(self.urgency, self.app, console, prefix = "bold")
             self.print_segment(f"summary_{self.urgency}", self.summary, console, prefix = "bold")
-            self.print_segment("body", self.body, console)
+            body = " ".join(self.body.split())
+            self.print_segment("body", body, console)
             self.print_segment("none", "", console)
+            console.print("", end="\n")
             console.print(end, end="")
 
         return len(hdate) + len(self.app) + len(self.summary) + len(self.body) + 6
 
 
+class MessageParagraph(Message):
+    def print_on(self, console = None, end = ""):
+        hdate = humanize.naturaltime(self.date)
+        if console != None:
+            # console.print(" ", end="")
+            # self.print_segment("date", hdate, console)
+            self.print_segment(self.urgency, self.app, console, prefix = "bold")
+            self.print_segment(f"summary_{self.urgency}", self.summary, console, prefix = "bold")
+            self.print_segment("none", "", console)
+            console.print("\n", end="")
+            body = " ".join(self.body.split())
+            self.print_segment("body", body, console)
+            self.print_segment("none", "", console)
+            console.print("", end="\n")
+            console.print(end, end="")
+
+        return len(hdate) + len(self.app) + len(self.summary) + len(self.body) + 6
+
+
+
 class Broker:
-    def __init__(self, max_msg = 100, bounds = ""):
+    def __init__(self, max_msg = 100, bounds = "", msg_cls = Message):
 
         self.max_msg = max_msg
         self.bounds = bounds
+        self.msg_cls = msg_cls
 
         self.deck = collections.deque()
 
@@ -245,7 +269,7 @@ class Broker:
         # print("Interface:", notification.get_interface(), flush = True)
 
         if notification.get_member() == "Notify" and notification.get_interface() == 'org.freedesktop.Notifications':
-            msg = Message(notification)
+            msg = self.msg_cls(notification)
             mlen = msg.print_on(None)
             if len(self.deck) == 0:
                 self.deck.append( (msg, mlen) )
@@ -274,8 +298,8 @@ class Broker:
 
 class HorizontalBroker(Broker):
 
-    def __init__(self, max_msg = 100, bounds = ""):
-        super().__init__(max_msg, bounds)
+    def __init__(self, max_msg = 100, bounds = "", msg_cls = MessageLine):
+        super().__init__(max_msg, bounds, msg_cls)
 
 
     def width(self, deck):
@@ -315,8 +339,8 @@ class HorizontalBroker(Broker):
 
 class VerticalBroker(Broker):
 
-    def __init__(self, max_msg = 100, bounds = ""):
-        super().__init__(max_msg, bounds)
+    def __init__(self, max_msg = 100, bounds = "", msg_cls = MessageParagraph):
+        super().__init__(max_msg, bounds, msg_cls)
 
 
     def print(self):
