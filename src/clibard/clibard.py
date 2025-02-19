@@ -3,9 +3,10 @@
 import copy
 import signal
 import datetime
+import humanize
 import collections
 
-import humanize
+import rich
 from rich.console import Console
 
 import dbus
@@ -149,6 +150,14 @@ class Message:
             "body": 242,
         }
 
+        # 🚨🚩🚧🛎 🛈 🏲 🏴📌📳🗨 🗩 🗬 🗭 🗮 🗯 🧭⚠⚲✎ � ❓❔︖🯄
+        self.icons = {
+            "low": "🛈 ",
+            "normal": "🗨 ",
+            "critical": "🚨",
+            "unknown": "🯄 ",
+        }
+
         self._style = {}
         for k in self.color:
             self._style[k] = f"color({self.color[k]})"
@@ -231,6 +240,33 @@ class MessageParagraph(Message):
             self.print_segment("none", "", console)
             console.print("", end="\n")
             console.print(end, end="")
+
+        return len(hdate) + len(self.app) + len(self.summary) + len(self.body) + 6
+
+
+class MessageBox(Message):
+    def print_on(self, console = None, end = ""):
+        hdate = self.date.strftime("%Y-%m-%d %H:%M")
+        if console != None:
+            # Automated black or white foreground.
+            if Color.ansi_lightness(self.color[self.urgency]) >= 50:
+                fg = "black"
+            else:
+                fg = "white"
+            summ_color = f"{fg} on color({self.color[self.urgency]})"
+            body_color = f"color({self.color['summary_'+self.urgency]})"
+            title = f"{self.icons[self.urgency]} ─[{summ_color}]{self.summary}[/]─ {self.app}"
+            # title = f"[{summ_color}]{self.summary}[/]─ {self.app}"
+            box = rich.panel.Panel(
+                    f"[{body_color}]{self.body}[/]",
+                    title=title,
+                    title_align="left",
+                    # subtitle = self.icons[self.urgency],
+                    # subtitle_align = "left",
+                    border_style=f"color({self.color[self.urgency]})",
+                    safe_box = False,
+                )
+            console.print(box)
 
         return len(hdate) + len(self.app) + len(self.summary) + len(self.body) + 6
 
@@ -382,8 +418,8 @@ if __name__ == "__main__":
         if asked.layout[0] == "h":
             broker = HorizontalBroker(bounds = "><")
         elif asked.layout[0] == "v":
-            broker = VerticalBroker(bounds = "><")
-        notifs = test_messages(int(sys.argv[2]))
+            broker = VerticalBroker(bounds = "><", msg_cls=MessageBox)
+        notifs = test_messages(int(asked.test))
         for notif in notifs:
             broker.receive(None, notif)
         print("\n", end="")
@@ -391,7 +427,7 @@ if __name__ == "__main__":
     elif asked.send:
         import os
         import time
-        notifs = test_messages(int(sys.argv[2]))
+        notifs = test_messages(int(asked.send))
         for notif in notifs:
             m = Message(notif)
             os.system(f"""notify-send "{m.summary}" "{m.body}" -u {m.urgency}""")
@@ -402,5 +438,5 @@ if __name__ == "__main__":
         broker.run()
 
     elif asked.layout[0] == "v":
-        broker = VerticalBroker()
+        broker = VerticalBroker(msg_cls=MessageBox)
         broker.run()
