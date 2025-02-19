@@ -209,6 +209,19 @@ class Message:
 
         self.last_color = f"{self.style(key)}"
 
+    def auto_fg(self, bg):
+        # Automated black or white foreground.
+        if Color.ansi_lightness(bg) >= 50:
+            return "black"
+        else:
+            return "white"
+
+    def hash_color(self, text, colors = None):
+        if not colors:
+            return hash(text) % 256
+        else:
+            return colors[hash(text) % len(colors)]
+
 
 class MessageLine(Message):
     def print_on(self, console = None, end = ""):
@@ -248,15 +261,17 @@ class MessageBox(Message):
     def print_on(self, console = None, end = ""):
         hdate = self.date.strftime("%Y-%m-%d %H:%M")
         if console != None:
-            # Automated black or white foreground.
-            if Color.ansi_lightness(self.color[self.urgency]) >= 50:
-                fg = "black"
-            else:
-                fg = "white"
-            summ_color = f"{fg} on color({self.color[self.urgency]})"
+            # summ_color = f"{self.auto_fg(FIXME)} on color({self.color[self.urgency]})"
             body_color = f"color({self.color['summary_'+self.urgency]})"
-            title = f"{self.icons[self.urgency]} ─[{summ_color}]{self.summary}[/]─ {self.app}"
+
+            bg = self.hash_color(self.summary)
+            sfg = f"{self.auto_fg(bg)} on color({bg})"
+            sfgi = f"color({bg})"
+            summ = f"─[{sfgi}][/][{sfg}]{self.summary}[/][{sfgi}][/]─"
+
+            title = f"{self.icons[self.urgency]} {summ} {self.app}"
             # title = f"[{summ_color}]{self.summary}[/]─ {self.app}"
+
             box = rich.panel.Panel(
                     f"[{body_color}]{self.body}[/]",
                     title=title,
